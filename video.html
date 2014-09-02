@@ -64,13 +64,13 @@
         // Get the youtube video ID from the window hash
         var videoUrl = window.location.hash ? window.location.hash.match(/#(.+)/)[1] : 'NU1sIxVGR9o';
 
-        var form = document.getElementsByTagName('form')[0],
-            notesDiv = document.getElementById('notes'),
-            fb = new Firebase("https://videocomments.firebaseio.com/"),
-            posted = {}, // Contains the comments that are visible on the page
-            clearDelay = 6, // How long, in seconds, to keep a comment visible
-            time = 0, // Used to store the current time in the video
-            seconds = 0, // The current time, rounded down to the nearest second
+        var form        = document.getElementsByTagName('form')[0],
+            notesDiv    = document.getElementById('notes'),
+            fb          = new Firebase("https://videocomments.firebaseio.com/"),
+            posted      = {}, // Contains the comments that are visible on the page
+            clearDelay  = 10, // How long, in seconds, to keep a comment visible
+            time        = 0, // Used to store the current time in the video
+            seconds     = 0, // The current time, rounded down to the nearest second
             player,
             interval; // Used to store the getCurrentTime loop
     }
@@ -130,9 +130,11 @@
             seconds = newSeconds;
             clearComments();
             displayComments();
+            // TODO: Either clear _all_ comments and reload, or
+            //       implement a sorting function to ensure that
+            //       the comments list is in chronological order.
         }
     };
-
 
     /* Get the comments whose timestamp matches the specified seconds
      * @param seconds {Number} - Timestamp in seconds for retrieved commentSec
@@ -230,15 +232,24 @@
         }).length > 0) {
 
             // Format the comment text
-            var c = document.createElement('span');
-            c.innerText = note.comment;
-            console.log(c.innerHTML);
-            c.innerHTML = addFormatting(c.innerHTML);
+            var commentSpan = document.createElement('span');
+            commentSpan.innerText = ' ' + note.comment;
+            console.log(commentSpan.innerHTML);
+            commentSpan.innerHTML = addFormatting(commentSpan.innerHTML);
+
+            // Prep the time anchor
+            var timeAnchor = document.createElement('a')
+            timeAnchor.onclick = function () {
+                player.seekTo(time);
+            }
+            timeAnchor.href = '#' + videoUrl;
+            timeAnchor.innerText = note.time;
 
             // Create the comment
             var a = document.createElement('p');
-            a.innerHTML = '<span class="time">' + note.time + '</span>: ';
-            a.appendChild(c);
+            // a.innerHTML = '<span class="time">' + note.time + '</span>: ';
+            a.appendChild(timeAnchor);
+            a.appendChild(commentSpan);
 
             // Add in the comment details, to be used in the above comparison
             a.time = note.time;
