@@ -1,0 +1,83 @@
+<!doctype html5>
+<html>
+
+<head>
+    <title>Video Test - List</title>
+
+    <style type="text/css">
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6,
+    p,
+    li {
+        font-family: 'Verdana', 'Tahoma';
+    }
+
+    .container {
+        width: 75%;
+        margin: auto;
+    }
+    #player {
+        max-width: 75%;
+        float: left;
+    }
+    .comment-container {
+        display: inline-block;
+        width: 24%;
+        margin-left: 1%;
+    }
+    hr {
+        border: none;
+        border-bottom: 1px solid #ccc;
+        margin: .5em .5%;
+    }
+    .time {
+        color: #777;
+        font-style: italic;
+    }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>Video List</h1>
+        <ul id='list'>
+        </ul>
+    </div>
+
+
+    <script src="https://cdn.firebase.com/js/client/1.0.21/firebase.js"></script>
+    <script type="text/javascript">
+
+    var fb = new Firebase("https://videocomments.firebaseio.com/");
+    var list = document.getElementById('list');
+    fb.on('value', function(snapshot) {
+        var videos = snapshot.val();
+        console.log(videos);
+        for (var key in videos) {
+            if (videos.hasOwnProperty(key) && !videoList[key]) {
+                // make url
+                var link = document.createElement('li');
+                var numComments = videos[key].data ? videos[key].data.length : 0;
+                link.innerHTML = '<a href="video.html#' + key + '">' + videos[key].title + '</a> - <span id="' + key + '-num">' + numComments + '</span> comment(s)';
+                // append url
+                list.appendChild(link);
+                // add url to videoList
+                videoList[key] = link;
+            } else if(videos.hasOwnProperty(key)) {
+                var numComments = videos[key].data ? videos[key].data.length : 0;
+                document.getElementById(key + '-num').innerText = numComments;
+            }
+        }
+    });
+
+    var videoList = {};
+
+    </script>
+
+</body>
+
+</html>

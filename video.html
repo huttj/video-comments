@@ -1,0 +1,260 @@
+<!doctype html5>
+<html>
+
+<head>
+    <title>Video Test</title>
+
+    <style type="text/css">
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6,
+    p,
+    li {
+        font-family: 'Verdana', 'Tahoma';
+    }
+
+    .container {
+        width: 75%;
+        margin: auto;
+    }
+    #player {
+        max-width: 75%;
+        float: left;
+    }
+    .comment-container {
+        display: inline-block;
+        width: 24%;
+        margin-left: 1%;
+    }
+    hr {
+        border: none;
+        border-bottom: 1px solid #ccc;
+        margin: .5em .5%;
+    }
+    .time {
+        color: #777;
+        font-style: italic;
+    }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>Video Test</h1>
+        <div id="player"></div>
+
+        <div class="comment-container">
+
+            <form>
+                <input type="text" id="myComment">
+                <input type="submit" value="Add" id="addCommentBtn">
+            </form>
+            <hr>
+            <div id="notes"></div>
+        </div>
+    </div>
+
+
+    <script src="https://cdn.firebase.com/js/client/1.0.21/firebase.js"></script>
+    <script type="text/javascript">
+
+    var videoUrl = window.location.hash ? window.location.hash.match(/#(.+)/)[1] : 'NU1sIxVGR9o';
+
+    var form        = document.getElementsByTagName('form')[0],
+        notesDiv    = document.getElementById('notes'),
+        fb          = new Firebase("https://videocomments.firebaseio.com/"),
+        posted      = {},
+        clearDelay  = 6,
+        time        = 0,
+        seconds     = Math.floor(time),
+        player,
+        interval;
+
+    var data = fb.child(videoUrl).child('data');
+    data.on('value', function(snapshot) {
+        comments = snapshot.val() || [];
+    });
+
+    /* Youtube stuff */ {
+        var tag = document.createElement('script');
+        tag.src = "https://www.youtube.com/iframe_api";
+        var firstScriptTag = document.getElementsByTagName('script')[0];
+        firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+
+        function onYouTubeIframeAPIReady() {
+            player = new YT.Player('player', {
+                height: '390',
+                width: '640',
+                videoId: videoUrl,
+                events: {
+                    onReady: function() {
+                        fb.child(videoUrl).child('title').set(player.getVideoData().title);
+                        document.getElementsByTagName('title')[0].innerText += '- ' + player.getVideoData().title;
+                    },
+                    onStateChange: function(e) {
+                        switch (e.data) {
+                            case 1:
+                                clearInterval(interval);
+                                interval = setInterval(loop, 100);
+                                break;
+                            default:
+                                clearInterval(interval);
+                                interval = setInterval(loop, 1000);
+                        }
+                    }
+                }
+            });
+        }
+    }
+
+    var loop = function() {
+        var newTime = player.getCurrentTime();
+        var newSeconds = Math.floor(newTime);
+
+        if (newSeconds != seconds) {
+            // Update times
+            time = newTime;
+            seconds = newSeconds;
+
+            // Clear comments that are not in the interval
+            clearComments();
+            // Add comments that are in the present second
+            // (and are not already added)
+            displayComments();
+        }
+    };
+
+
+    // Get the comments whose timestamp matches the specified seconds
+    // TODO: Sort the results
+    var getCommentsBySecond = function(seconds) {
+        var seekMin = Math.floor(seconds / 60),
+            seekSec = Math.floor(seconds % 60);
+
+        return comments.filter(function(n) {
+            var t = n.time.split(':');
+            var commentMin = Number(t[0]);
+            var commentSec = Number(t[1]);
+
+            return (commentMin == seekMin) && (commentSec == seekSec || (commentSec < seekSec && (seekSec - commentSec < clearDelay)));
+        }).sort(function(a,b) {
+            var aTime = a.time.split(':').map(function(n) {return Number(n) });
+            aTime = aTime[0]*60 + aTime[1] + aTime[2]/100;
+            
+            var bTime = b.time.split(':').map(function(n) {return Number(n) });
+            bTime = bTime[0]*60 + bTime[1] + bTime[2]/100;
+            
+            console.log(aTime, bTime);
+            
+            return aTime - bTime;
+        });
+    }
+
+    // Turn a seconds value into a timestamp
+    var getTimestamp = function(time) {
+        var ms = (((time % 1) * 100).toPrecision(2) | '00').toString();
+        var s = (Math.floor(time % 60)).toString();
+        var m = (Math.floor(time / 60)).toString();
+
+        var timestamp = '';
+        if (m.length < 2) timestamp += '0';
+        timestamp += m + ':';
+        if (s.length < 2) timestamp += '0';
+        timestamp += s + ':';
+        if (ms.length < 2) timestamp += '0';
+        timestamp += ms;
+
+        return timestamp;
+
+    }
+
+
+    var displayComments = function() {
+        var currentComments = getCommentsBySecond(seconds);
+
+        if (currentComments) {
+            for (var i = 0; i < currentComments.length; i++) {
+                displayComment(currentComments[i]);
+            }
+        }
+    }
+
+    var addFormatting = function(string) {
+        while (string.match(/\[(.+)\]\((.+)\)/)) {
+            string = string.replace(/\[(.+)\]\((.+)\)/, '<a href="$2">$1</a>');
+            string = string.replace(/href="(?!.+(?::\/\/)|(?:mailto:))(.+)"/, 'href="http://$1"');
+        }
+
+        while (string.match(/\*\*(.+?\*?)\*\*/)) {
+            string = string.replace(/\*\*(.+?\*?)\*\*/, '<b>$1</b>');
+        }
+        while (string.match(/\*(.+?)\*/)) {
+            string = string.replace(/\*(.+?)\*/, '<i>$1</i>');
+        }
+        return string;
+    }
+
+    var displayComment = function(note) {
+        var time = note.seconds;
+
+        if (!posted[time] || !posted[time].filter(function(n) {
+            return n.time == note.time && n.comment == note.comment;
+        }).length > 0) {
+            var c = document.createElement('span');
+
+            c.innerText = note.comment;
+            console.log(c.innerHTML);
+
+            c.innerHTML = addFormatting(c.innerHTML);
+
+
+            var a = document.createElement('p');
+            a.innerHTML = '<span class="time">' + note.time + '</span>: ';
+            a.appendChild(c);
+            a.time = note.time;
+            a.comment = note.comment;
+            notesDiv.appendChild(a);
+            posted[time] ? posted[time].push(a) : posted[time] = [a];
+        }
+    }
+
+    // Remove all comments that were either
+    //  1. Posted in the future
+    //  2. Poted more than clearDelay seconds ago
+    var clearComments = function() {
+        for (var key in posted) {
+            if (posted.hasOwnProperty(key)) {
+                var commentTime = key;
+                if (commentTime > seconds || (seconds - commentTime > clearDelay)) {
+                    for (var j = 0; j < posted[key].length; j++) {
+                        posted[key][j].remove();
+                    }
+                    delete posted[key];
+                }
+
+            }
+        }
+    }
+
+    form.onsubmit = function(e) {
+        e.preventDefault();
+
+        var comment = {
+            time: getTimestamp(player.getCurrentTime()),
+            comment: myComment.value,
+            seconds: seconds
+        };
+        myComment.value = "";
+        comments.push(comment);
+        displayComments(comment);
+
+        data.set(comments);
+    }
+    </script>
+
+</body>
+
+</html>
