@@ -58,24 +58,55 @@
         var videos = snapshot.val();
         console.log(videos);
         for (var key in videos) {
+            
+            // If the video is not in the list, make a link for it
             if (videos.hasOwnProperty(key) && !videoList[key]) {
-                // make url
                 var link = document.createElement('li');
-                var numComments = videos[key].data ? videos[key].data.length : 0;
-                link.innerHTML = '<a href="video.html#' + key + '">' + videos[key].title + '</a> - <span id="' + key + '-num">' + numComments + '</span> comment(s)';
-                // append url
-                list.appendChild(link);
-                // add url to videoList
+                link.title = videos[key].title;
+                link.numComments = videos[key].data ? videos[key].data.length : 0;
+                link.innerHTML = '<a href="video.html#' + key + '">' + videos[key].title + '</a> - <span id="' + key + '-num">' + link.numComments + '</span> comment(s)';
                 videoList[key] = link;
+
+            // Otherwise, just update its num comments
             } else if(videos.hasOwnProperty(key)) {
-                var numComments = videos[key].data ? videos[key].data.length : 0;
-                document.getElementById(key + '-num').innerText = numComments;
+                var link = videoList[key];
+                link.numComments = videos[key].data ? videos[key].data.length : 0;
+                document.getElementById(key + '-num').innerText = link.numComments;
             }
+            sortList();
         }
     });
 
     var videoList = {};
 
+    // Simple sort method to keep the list in order
+    var sortList = function() {
+    
+        // Fill an array with the links
+        var sortedList = [];
+        for (var key in videoList) {
+            if (videoList.hasOwnProperty(key)) {
+                sortedList.push(videoList[key]);
+            }
+        }
+        
+        // Sort the array, first by number of comments
+        // and then by title
+        sortedList.sort(function(a, b) {
+            if (a.numComments == b.numComments) {
+                return a.title.localeCompare(b.title);
+            }
+            return b.numComments - a.numComments;
+        });
+        
+        // Use a fragment to append the links in bulk
+        var frag = document.createDocumentFragment();
+        for (var i = 0; i<sortedList.length; i++) {
+            frag.appendChild(sortedList[i]);
+        }
+        list.innerHTML = '';
+        list.appendChild(frag);
+    }
     </script>
 
 </body>
