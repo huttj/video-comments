@@ -15,7 +15,6 @@
     li {
         font-family: 'Verdana', 'Tahoma';
     }
-
     .container {
         width: 75%;
         margin: auto;
@@ -57,28 +56,35 @@
         </div>
     </div>
 
-
     <script src="https://cdn.firebase.com/js/client/1.0.21/firebase.js"></script>
     <script type="text/javascript">
 
-    var videoUrl = window.location.hash ? window.location.hash.match(/#(.+)/)[1] : 'NU1sIxVGR9o';
+    // Variables & set up
+    {
+        // Get the youtube video ID from the window hash
+        var videoUrl = window.location.hash ? window.location.hash.match(/#(.+)/)[1] : 'NU1sIxVGR9o';
 
-    var form        = document.getElementsByTagName('form')[0],
-        notesDiv    = document.getElementById('notes'),
-        fb          = new Firebase("https://videocomments.firebaseio.com/"),
-        posted      = {},
-        clearDelay  = 6,
-        time        = 0,
-        seconds     = Math.floor(time),
-        player,
-        interval;
+        var form = document.getElementsByTagName('form')[0],
+            notesDiv = document.getElementById('notes'),
+            fb = new Firebase("https://videocomments.firebaseio.com/"),
+            posted = {}, // Contains the comments that are visible on the page
+            clearDelay = 6, // How long, in seconds, to keep a comment visible
+            time = 0, // Used to store the current time in the video
+            seconds = 0, // The current time, rounded down to the nearest second
+            player,
+            interval; // Used to store the getCurrentTime loop
+    }
 
-    var data = fb.child(videoUrl).child('data');
-    data.on('value', function(snapshot) {
-        comments = snapshot.val() || [];
-    });
+    // Get/subscribe to the comments for the current video
+    {
+        var data = fb.child(videoUrl).child('data');
+        data.on('value', function(snapshot) {
+            comments = snapshot.val() || [];
+        });
+    }
 
-    /* Youtube stuff */ {
+    // Youtube stuff
+    {
         var tag = document.createElement('script');
         tag.src = "https://www.youtube.com/iframe_api";
         var firstScriptTag = document.getElementsByTagName('script')[0];
@@ -91,10 +97,12 @@
                 videoId: videoUrl,
                 events: {
                     onReady: function() {
+                        // Just in case, save the name of the video to the datastore
                         fb.child(videoUrl).child('title').set(player.getVideoData().title);
                         document.getElementsByTagName('title')[0].innerText += '- ' + player.getVideoData().title;
                     },
                     onStateChange: function(e) {
+                        // Slow the loop if the video is paused, loading, etc.
                         switch (e.data) {
                             case 1:
                                 clearInterval(interval);
@@ -110,26 +118,26 @@
         }
     }
 
+    // Manual loop to check if the video has advanced to a new time
     var loop = function() {
         var newTime = player.getCurrentTime();
         var newSeconds = Math.floor(newTime);
 
+        // If the time has changed, clear the comments that are passed
+        // the threshold and load any new comments into the list
         if (newSeconds != seconds) {
-            // Update times
             time = newTime;
             seconds = newSeconds;
-
-            // Clear comments that are not in the interval
             clearComments();
-            // Add comments that are in the present second
-            // (and are not already added)
             displayComments();
         }
     };
 
 
-    // Get the comments whose timestamp matches the specified seconds
-    // TODO: Sort the results
+    /* Get the comments whose timestamp matches the specified seconds
+     * @param seconds {Number} - Timestamp in seconds for retrieved commentSec
+     * @returns {Array} - Comment object, with comment string and time string
+     */
     var getCommentsBySecond = function(seconds) {
         var seekMin = Math.floor(seconds / 60),
             seekSec = Math.floor(seconds % 60);
@@ -140,25 +148,33 @@
             var commentSec = Number(t[1]);
 
             return (commentMin == seekMin) && (commentSec == seekSec || (commentSec < seekSec && (seekSec - commentSec < clearDelay)));
-        }).sort(function(a,b) {
-            var aTime = a.time.split(':').map(function(n) {return Number(n) });
-            aTime = aTime[0]*60 + aTime[1] + aTime[2]/100;
-            
-            var bTime = b.time.split(':').map(function(n) {return Number(n) });
-            bTime = bTime[0]*60 + bTime[1] + bTime[2]/100;
-            
+        }).sort(function(a, b) {
+            var aTime = a.time.split(':').map(function(n) {
+                return Number(n)
+            });
+            aTime = aTime[0] * 60 + aTime[1] + aTime[2] / 100;
+
+            var bTime = b.time.split(':').map(function(n) {
+                return Number(n)
+            });
+            bTime = bTime[0] * 60 + bTime[1] + bTime[2] / 100;
+
             console.log(aTime, bTime);
-            
+
             return aTime - bTime;
         });
     }
 
-    // Turn a seconds value into a timestamp
+    /* Turn a seconds value into a timestamp of format
+     * @param time {Number} - Time in seconds
+     * @returns {String} - Timestamp of format "mm:ss:ms"
+     */
     var getTimestamp = function(time) {
         var ms = (((time % 1) * 100).toPrecision(2) | '00').toString();
         var s = (Math.floor(time % 60)).toString();
         var m = (Math.floor(time / 60)).toString();
 
+        // Build the timestamp, unit-by-unit, padding with 0s as needed
         var timestamp = '';
         if (m.length < 2) timestamp += '0';
         timestamp += m + ':';
@@ -168,10 +184,10 @@
         timestamp += ms;
 
         return timestamp;
-
     }
 
-
+    /* Gets and displays comments for the current second
+     */
     var displayComments = function() {
         var currentComments = getCommentsBySecond(seconds);
 
@@ -182,6 +198,10 @@
         }
     }
 
+    /* Inserts b, i, and a tags into a string that uses markdown notation
+     * @param string {String} - Source string with markdown notation
+     * @returns {String} - Source string with b, i, and a tags inserted
+     */
     var addFormatting = function(string) {
         while (string.match(/\[(.+)\]\((.+)\)/)) {
             string = string.replace(/\[(.+)\]\((.+)\)/, '<a href="$2">$1</a>');
@@ -197,37 +217,50 @@
         return string;
     }
 
+    /* Posts a comment, if it is not posted already (i.e., in the posted object)
+     * @param note {Object} - Comment object with comment string and time string
+     */
     var displayComment = function(note) {
         var time = note.seconds;
 
+        // If there is no array for the current second count, the comment is not yet posted
+        // Or if there is no comment in that array matching the comment, it is not posted
         if (!posted[time] || !posted[time].filter(function(n) {
             return n.time == note.time && n.comment == note.comment;
         }).length > 0) {
-            var c = document.createElement('span');
 
+            // Format the comment text
+            var c = document.createElement('span');
             c.innerText = note.comment;
             console.log(c.innerHTML);
-
             c.innerHTML = addFormatting(c.innerHTML);
 
-
+            // Create the comment
             var a = document.createElement('p');
             a.innerHTML = '<span class="time">' + note.time + '</span>: ';
             a.appendChild(c);
+
+            // Add in the comment details, to be used in the above comparison
             a.time = note.time;
             a.comment = note.comment;
+
+            // Add the comment to the page
             notesDiv.appendChild(a);
+
+            // Add a reference to the comment in the posted object, at the current time
             posted[time] ? posted[time].push(a) : posted[time] = [a];
         }
     }
 
-    // Remove all comments that were either
-    //  1. Posted in the future
-    //  2. Poted more than clearDelay seconds ago
+    /* Remove all comments that were either
+     *   1. Posted in the future
+     *   2. Poted more than clearDelay seconds ago
+     */
     var clearComments = function() {
         for (var key in posted) {
             if (posted.hasOwnProperty(key)) {
                 var commentTime = key;
+
                 if (commentTime > seconds || (seconds - commentTime > clearDelay)) {
                     for (var j = 0; j < posted[key].length; j++) {
                         posted[key][j].remove();
@@ -239,6 +272,10 @@
         }
     }
 
+    /* Submit behavior for the add comment form. Creates and posts comment for
+     * the current time
+     * @param e {Event} - Event object for the form submit
+     */
     form.onsubmit = function(e) {
         e.preventDefault();
 
@@ -247,11 +284,18 @@
             comment: myComment.value,
             seconds: seconds
         };
-        myComment.value = "";
-        comments.push(comment);
-        displayComments(comment);
 
+        // Reset the input box
+        myComment.value = "";
+
+        // Add the comment and update the datastore
+        // TODO: Find out if appending the data in FB is sufficient
+        //       E.g. data.push(comment);
+        comments.push(comment);
         data.set(comments);
+
+        // Refresh the comments to ensure the new one appears right away
+        displayComments(comment);
     }
     </script>
 
