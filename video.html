@@ -56,17 +56,25 @@
         </div>
     </div>
 
-    <script src="https://cdn.firebase.com/js/client/1.0.21/firebase.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/5.0.1/firebase.js"></script>
     <script type="text/javascript">
 
     // Variables & set up
     {
+
+        firebase.initializeApp({
+          apiKey: "AIzaSyBI36DZed2XcTLb6RW4jjsAHeNVvzMIHUc",
+          authDomain: "video-comments-b7efa.firebaseapp.com",
+          databaseURL: "https://video-comments-b7efa.firebaseio.com"
+        });
+
+        var fb = firebase.database().ref();
+
         // Get the youtube video ID from the window hash
         var videoUrl = window.location.hash ? window.location.hash.match(/#(.+)/)[1] : 'NU1sIxVGR9o';
 
         var form        = document.getElementsByTagName('form')[0],
             notesDiv    = document.getElementById('notes'),
-            fb          = new Firebase("https://videocomments.firebaseio.com/"),
             posted      = {}, // Contains the comments that are visible on the page
             clearDelay  = 10, // How long, in seconds, to keep a comment visible
             time        = 0, // Used to store the current time in the video

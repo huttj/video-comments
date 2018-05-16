@@ -49,10 +49,17 @@
     </div>
 
 
-    <script src="https://cdn.firebase.com/js/client/1.0.21/firebase.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/5.0.1/firebase.js"></script>
     <script type="text/javascript">
 
-    var fb = new Firebase("https://videocomments.firebaseio.com/");
+    firebase.initializeApp({
+      apiKey: "AIzaSyBI36DZed2XcTLb6RW4jjsAHeNVvzMIHUc",
+      authDomain: "video-comments-b7efa.firebaseapp.com",
+      databaseURL: "https://video-comments-b7efa.firebaseio.com"
+    });
+
+    var fb = firebase.database().ref();
+
     var list = document.getElementById('list');
     fb.on('value', function(snapshot) {
         var videos = snapshot.val();
